@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 Surveillance & Epidemiological Dashboard</title>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PapaParse for CSV data handling -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Sarabun', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            background: #1e293b;
+            color: #ffffff;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        header p {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        /* Profile Section in Header */
+        .header-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(51, 65, 85, 0.6);
+            padding: 6px 14px 6px 8px;
+            border-radius: 30px;
+            border: 1px solid #475569;
+        }
+        .header-profile img {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+        }
+        .header-profile .profile-info {
+            display: flex;
+            flex-direction: column;
+            text-align: right;
+        }
+        .header-profile .profile-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+        .header-profile .profile-role {
+            font-size: 0.75rem;
+            color: #38bdf8;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 290px 1fr;
+            gap: 16px;
+            padding: 16px;
+            flex: 1;
+        }
+        /* Sidebar Filter Style */
+        .sidebar {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .sidebar h2 {
+            font-size: 1.1rem;
+            color: #f1f5f9;
+            border-bottom: 2px solid #38bdf8;
+            padding-bottom: 8px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        .filter-group select, .filter-group input {
+            width: 100%;
+            padding: 9px 12px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .filter-group select:focus, .filter-group input:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        .btn-reset {
+            margin-top: 10px;
+            padding: 10px;
+            background: #334155;
+            color: #f8fafc;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn-reset:hover {
+            background: #475569;
+        }
+        /* Main Dashboard Area */
+        .content {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        /* KPI Cards */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .kpi-card {
+            background: #1e293b;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .kpi-card h3 {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .kpi-card p {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-top: 6px;
+            color: #38bdf8;
+        }
+        .kpi-card.danger p { color: #f87171; }
+        .kpi-card.warning p { color: #fbbf24; }
+        .kpi-card.success p { color: #4ade80; }
+
+        /* Grid for Map and Main Charts */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 16px;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 18px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+        }
+        .card-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 12px;
+            color: #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #map {
+            height: 440px;
+            width: 100%;
+            border-radius: 8px;
+            z-index: 1;
+        }
+        .chart-container {
+            position: relative;
+            flex: 1;
+            min-height: 200px;
+        }
+        .chart-container.large {
+            min-height: 240px;
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        
+        /* Map Legend */
+        .legend {
+            padding: 8px 12px;
+            background: rgba(30, 41, 59, 0.9);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            color: #fff;
+            font-size: 12px;
+            line-height: 18px;
+            border: 1px solid #475569;
+        }
+        .legend i {
+            width: 14px;
+            height: 14px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.8;
+            border-radius: 50%;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .kpi-container { grid-template-columns: repeat(2, 1fr); }
+            .charts-row { grid-template-columns: 1fr; }
+            .container { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>📊 COVID-19 Surveillance & Epidemiological Dashboard</h1>
+            <p>ระบบสารสนเทศทางระบาดวิทยา การกระจายตัวเชิงพื้นที่ (Spot Map & Choropleth Map)</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <span id="data-status" style="font-size: 0.8rem; background: #334155; padding: 6px 12px; border-radius: 20px; color: #38bdf8;">กำลังประมวลผลข้อมูล...</span>
+            
+            <!-- User Profile Section -->
+            <div class="header-profile">
+                <div class="profile-info">
+                    <span class="profile-title">นักวิชาการสาธารณสุข</span>
+                    <span class="profile-role">ผู้ดูแลระบบการเฝ้าระวัง</span>
+                </div>
+                <img src="https://github.com/nicha032/covid__/blob/main/profile.jpg?raw=true" alt="Profile Picture" onerror="this.src='https://placehold.co/100x100/1e293b/38bdf8?text=User'">
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar Filters -->
+        <div class="sidebar">
+            <h2>🔍 ตัวกรองระบาดวิทยา</h2>
+            
+            <div class="filter-group">
+                <label for="filter-province">จังหวัด (Province of Onset/Isolation):</label>
+                <select id="filter-province">
+                    <option value="ALL">-- ทั้งหมด --</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-district">อำเภอ (District of Onset):</label>
+                <select id="filter-district">
+                    <option value="ALL">-- ทั้งหมด --</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-sex">เพศ (Sex):</label>
+                <select id="filter-sex">
+                    <option value="ALL">ทั้งหมด</option>
+                    <option value="ชาย">ชาย</option>
+                    <option value="หญิง">หญิง</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-age">กลุ่มอายุ (Age Group):</label>
+                <select id="filter-age">
+                    <option value="ALL">ทุกช่วงอายุ</option>
+                    <option value="0-14">เด็ก (0-14 ปี)</option>
+                    <option value="15-59">วัยทำงาน (15-59 ปี)</option>
+                    <option value="60+">ผู้สูงอายุ (60 ปีขึ้นไป)</option>
+                </select>
+            </div>
+
+            <button class="btn-reset" onclick="resetFilters()">🔄 ล้างตัวกรองทั้งหมด</button>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div class="content">
+            <!-- Summary KPI Bar -->
+            <div class="kpi-container">
+                <div class="kpi-card">
+                    <h3>จำนวนเคสทั้งหมดในระบบ</h3>
+                    <p id="kpi-total">0</p>
+                </div>
+                <div class="kpi-card warning">
+                    <h3>จำนวนอำเภอที่พบเคส</h3>
+                    <p id="kpi-districts">0</p>
+                </div>
+                <div class="kpi-card danger">
+                    <h3>กลุ่มเสี่ยงสูง (อายุ 60 ปีขึ้นไป)</h3>
+                    <p id="kpi-elderly">0</p>
+                </div>
+                <div class="kpi-card success">
+                    <h3>อัตราส่วนเพศ (ชาย : หญิง)</h3>
+                    <p id="kpi-sex-ratio">0 : 0</p>
+                </div>
+            </div>
+
+            <!-- Map + Top Districts Area -->
+            <div class="main-grid">
+                <div class="card">
+                    <div class="card-title">
+                        <span>🗺️ แผนที่ระบาดวิทยา GIS (Esri ArcGIS Satellite + Spot/Choropleth Map)</span>
+                    </div>
+                    <div id="map"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📈 10 อันดับพื้นที่ระบาดสูงสุด (ระดับอำเภอ)</div>
+                    <div class="chart-container">
+                        <canvas id="topDistrictsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Epidemic Curve Chart -->
+            <div class="card">
+                <div class="card-title">
+                    <span>⏱️ Epidemic Curve (จำนวนผู้ป่วยระบาดตามช่วงเวลาที่รับแจ้ง / Announce Date)</span>
+                </div>
+                <div class="chart-container large">
+                    <canvas id="epiCurveChart"></canvas>
+                </div>
+            </div>
+
+            <!-- General Patient Characteristics -->
+            <div class="charts-row">
+                <div class="card">
+                    <div class="card-title">เพศผู้ป่วย</div>
+                    <div class="chart-container">
+                        <canvas id="sexChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">โครงสร้างกลุ่มอายุ</div>
+                    <div class="chart-container">
+                        <canvas id="ageChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">ปัจจัยเสี่ยงสูงสุด (Top Risks)</div>
+                    <div class="chart-container">
+                        <canvas id="riskChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // พิกัดอำเภอหลัก (จังหวัดเชียงใหม่และพื้นที่ภาคเหนือ)
+        const districtCoordinates = {
+            "เมืองเชียงใหม่": [18.7883, 98.9853],
+            "จอมทอง": [18.4162, 98.6806],
+            "แม่แจ่ม": [18.4988, 98.3636],
+            "เชียงดาว": [19.3667, 98.9667],
+            "ดอยสะเก็ด": [18.8680, 99.1388],
+            "แม่แตง": [19.1214, 98.9431],
+            "แม่ริม": [18.9142, 98.9419],
+            "สะเมิง": [18.8466, 98.7303],
+            "ฝาง": [19.9169, 99.2144],
+            "แม่อาย": [20.0333, 99.3500],
+            "พร้าว": [19.3664, 99.2023],
+            "สันป่าตอง": [18.6289, 98.8967],
+            "สันกำแพง": [18.7447, 99.1226],
+            "สันทราย": [18.8911, 99.0436],
+            "หางดง": [18.6872, 98.9174],
+            "ฮอด": [18.1914, 98.6128],
+            "ดอยเต่า": [17.9547, 98.6853],
+            "อมก๋อย": [17.8028, 98.3589],
+            "สารภี": [18.7121, 99.0386],
+            "เวียงแหง": [19.5606, 98.6347],
+            "ไชยปราการ": [19.7347, 99.1417],
+            "แม่วาง": [18.6083, 98.7906],
+            "แม่ออน": [18.7828, 99.2483],
+            "ดอยหล่อ": [18.4833, 98.7833],
+            "กัลยาณิวัฒนา": [19.0758, 98.3208],
+            "ต่างจังหวัด": [18.2500, 99.1000]
+        };
+
+        // ชุดข้อมูลจำลองจากไฟล์ final69_covid65.xlsx
+        const rawDataset = [
+            { No: "3905873", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 54, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "จอมทอง" },
+            { No: "3905874", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 36, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "เมืองเชียงใหม่" },
+            { No: "3905875", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 31, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ดอยหล่อ" },
+            { No: "3905876", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 37, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ต่างจังหวัด" },
+            { No: "3905877", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 33, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "แม่ริม" },
+            { No: "3905878", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 12, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "แม่แตง" },
+            { No: "3905879", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 32, province_of_isolation: "เชียงใหม่", risk: "สัมผัสใกล้ชิดผู้ป่วยยืนยัน", province_of_onset: "เชียงใหม่", district_of_onset: "แม่ริม" },
+            { No: "3905880", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 55, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" },
+            { No: "3905881", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 45, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "เมืองเชียงใหม่" },
+            { No: "3905882", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 42, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สันกำแพง" },
+            { No: "3905883", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 37, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "แม่ริม" },
+            { No: "3905884", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 41, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" },
+            { No: "3905885", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 28, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ต่างจังหวัด" },
+            { No: "3905886", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 37, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ดอยสะเก็ด" },
+            { No: "3905887", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 24, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ต่างจังหวัด" },
+            { No: "3905888", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 39, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ดอยสะเก็ด" },
+            { No: "3905889", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 34, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" },
+            { No: "3905890", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 88, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "เมืองเชียงใหม่" },
+            { No: "3905891", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 9, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สันทราย" },
+            { No: "3905892", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 28, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "เมืองเชียงใหม่" },
+            { No: "3905893", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 43, province_of_isolation: "เชียงใหม่", risk: "สัมผัสใกล้ชิดผู้ป่วยยืนยัน", province_of_onset: "เชียงใหม่", district_of_onset: "ฝาง" },
+            { No: "3905894", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 62, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "เมืองเชียงใหม่" },
+            { No: "3905895", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 39, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ต่างจังหวัด" },
+            { No: "3905896", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 31, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "หางดง" },
+            { No: "3905897", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 41, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "จอมทอง" },
+            { No: "3905898", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 24, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สันป่าตอง" },
+            { No: "3905899", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 26, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ต่างจังหวัด" },
+            { No: "3905900", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 44, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" },
+            { No: "3905901", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 46, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "ดอยสะเก็ด" },
+            { No: "3905902", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 55, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สันกำแพง" },
+            { No: "3905903", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "หญิง", age: 68, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" },
+            { No: "3905904", announce_date: "12/4/2022", Notified_date: "11/4/2022", sex: "ชาย", age: 71, province_of_isolation: "เชียงใหม่", risk: "อยู่ระหว่างการสอบสวน", province_of_onset: "เชียงใหม่", district_of_onset: "สารภี" }
+        ];
+
+        let filteredData = [...rawDataset];
+        let map, spotLayerGroup;
+        let topChartObj, epiChartObj, sexChartObj, ageChartObj, riskChartObj;
+
+        // Initialize App
+        document.addEventListener("DOMContentLoaded", function() {
+            initMap();
+            populateFilters();
+            updateDashboard();
+        });
+
+        // 1. Esri ArcGIS Tile Map Initialization
+        function initMap() {
+            // Center around Chiang Mai / Upper North Thailand
+            map = L.map('map').setView([18.7883, 98.9853], 9);
+
+            // Esri World Imagery Tile Layer
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            }).addTo(map);
+
+            // Esri Boundaries and Transportation Labels
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Esri'
+            }).addTo(map);
+
+            spotLayerGroup = L.layerGroup().addTo(map);
+
+            // Add Legend
+            const legend = L.control({position: 'bottomright'});
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'legend');
+                div.innerHTML += '<strong>เพศผู้ป่วย (Spot Map)</strong><br>';
+                div.innerHTML += '<i style="background: #38bdf8"></i> ชาย<br>';
+                div.innerHTML += '<i style="background: #f472b6"></i> หญิง<br>';
+                return div;
+            };
+            legend.addTo(map);
+        }
+
+        // 2. Populate Dropdown Filters
+        function populateFilters() {
+            const provinces = [...new Set(rawDataset.map(d => d.province_of_onset || d.province_of_isolation).filter(Boolean))];
+            const districts = [...new Set(rawDataset.map(d => d.district_of_onset).filter(Boolean))];
+
+            const provSelect = document.getElementById("filter-province");
+            provinces.forEach(p => provSelect.innerHTML += `<option value="${p}">${p}</option>`);
+
+            const distSelect = document.getElementById("filter-district");
+            districts.forEach(d => distSelect.innerHTML += `<option value="${d}">${d}</option>`);
+
+            document.getElementById("filter-province").addEventListener("change", applyFilters);
+            document.getElementById("filter-district").addEventListener("change", applyFilters);
+            document.getElementById("filter-sex").addEventListener("change", applyFilters);
+            document.getElementById("filter-age").addEventListener("change", applyFilters);
+        }
+
+        // 3. Filter Data Logic
+        function applyFilters() {
+            const pVal = document.getElementById("filter-province").value;
+            const dVal = document.getElementById("filter-district").value;
+            const sVal = document.getElementById("filter-sex").value;
+            const aVal = document.getElementById("filter-age").value;
+
+            filteredData = rawDataset.filter(item => {
+                let matchP = (pVal === "ALL" || item.province_of_onset === pVal || item.province_of_isolation === pVal);
+                let matchD = (dVal === "ALL" || item.district_of_onset === dVal);
+                let matchS = (sVal === "ALL" || item.sex === sVal);
+                
+                let age = parseInt(item.age) || 0;
+                let matchA = true;
+                if (aVal === "0-14") matchA = (age <= 14);
+                else if (aVal === "15-59") matchA = (age >= 15 && age <= 59);
+                else if (aVal === "60+") matchA = (age >= 60);
+
+                return matchP && matchD && matchS && matchA;
+            });
+
+            updateDashboard();
+        }
+
+        function resetFilters() {
+            document.getElementById("filter-province").value = "ALL";
+            document.getElementById("filter-district").value = "ALL";
+            document.getElementById("filter-sex").value = "ALL";
+            document.getElementById("filter-age").value = "ALL";
+            applyFilters();
+        }
+
+        // 4. Update UI Components
+        function updateDashboard() {
+            document.getElementById("data-status").innerText = `แสดงข้อมูล ${filteredData.length} รายการ`;
+            updateKPIs();
+            renderMapSpots();
+            renderCharts();
+        }
+
+        function updateKPIs() {
+            document.getElementById("kpi-total").innerText = filteredData.length.toLocaleString();
+            
+            const uniqueDistricts = new Set(filteredData.map(d => d.district_of_onset)).size;
+            document.getElementById("kpi-districts").innerText = uniqueDistricts;
+
+            const elderly = filteredData.filter(d => (parseInt(d.age) || 0) >= 60).length;
+            document.getElementById("kpi-elderly").innerText = elderly;
+
+            const male = filteredData.filter(d => d.sex === "ชาย").length;
+            const female = filteredData.filter(d => d.sex === "หญิง").length;
+            document.getElementById("kpi-sex-ratio").innerText = `${male} : ${female}`;
+        }
+
+        // 5. Render Spot Map
+        function renderMapSpots() {
+            spotLayerGroup.clearLayers();
+
+            filteredData.forEach(item => {
+                const district = item.district_of_onset ? item.district_of_onset.replace('เมืองเชียงใหม่...', 'เมืองเชียงใหม่') : 'เมืองเชียงใหม่';
+                const coords = districtCoordinates[district] || [18.7883, 98.9853];
+
+                // Random Jittering to prevent point overlapping
+                const latJitter = (Math.random() - 0.5) * 0.04;
+                const lngJitter = (Math.random() - 0.5) * 0.04;
+
+                const markerColor = item.sex === 'ชาย' ? '#38bdf8' : '#f472b6';
+
+                const marker = L.circleMarker([coords[0] + latJitter, coords[1] + lngJitter], {
+                    radius: 7,
+                    fillColor: markerColor,
+                    color: "#ffffff",
+                    weight: 1.5,
+                    opacity: 1,
+                    fillOpacity: 0.85
+                });
+
+                marker.bindPopup(`
+                    <div style="font-family: Sarabun; color: #1e293b;">
+                        <h4 style="margin-bottom: 4px; color: #0284c7;">รหัสเคส: ${item.No}</h4>
+                        <b>อำเภอที่เกิดโรค:</b> ${item.district_of_onset}<br>
+                        <b>จังหวัด:</b> ${item.province_of_onset || item.province_of_isolation}<br>
+                        <b>เพศ:</b> ${item.sex} | <b>อายุ:</b> ${item.age} ปี<br>
+                        <b>ปัจจัยเสี่ยง:</b> ${item.risk}<br>
+                        <b>วันที่รายงาน:</b> ${item.announce_date}
+                    </div>
+                `);
+
+                spotLayerGroup.addLayer(marker);
+            });
+        }
+
+        // 6. Epidemiological Charts Generation
+        function renderCharts() {
+            // Chart 1: Top Districts Bar Chart
+            const distCounts = {};
+            filteredData.forEach(d => {
+                let name = d.district_of_onset || 'ไม่ระบุ';
+                distCounts[name] = (distCounts[name] || 0) + 1;
+            });
+            const sortedDistricts = Object.entries(distCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+
+            if (topChartObj) topChartObj.destroy();
+            topChartObj = new Chart(document.getElementById('topDistrictsChart'), {
+                type: 'bar',
+                data: {
+                    labels: sortedDistricts.map(d => d[0]),
+                    datasets: [{
+                        label: 'จำนวนเคสผู้ป่วย',
+                        data: sortedDistricts.map(d => d[1]),
+                        backgroundColor: '#38bdf8'
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#f8fafc' }, grid: { display: false } }
+                    }
+                }
+            });
+
+            // Chart 2: Epidemic Curve (Line Chart)
+            const epiDates = {};
+            filteredData.forEach(d => {
+                let date = d.announce_date || 'N/A';
+                epiDates[date] = (epiDates[date] || 0) + 1;
+            });
+
+            if (epiChartObj) epiChartObj.destroy();
+            epiChartObj = new Chart(document.getElementById('epiCurveChart'), {
+                type: 'line',
+                data: {
+                    labels: Object.keys(epiDates),
+                    datasets: [{
+                        label: 'จำนวนผู้ป่วยรายวัน (Cases)',
+                        data: Object.values(epiDates),
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#f8fafc' } } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, beginAtZero: true }
+                    }
+                }
+            });
+
+            // Chart 3: Sex Doughnut Chart
+            const maleCount = filteredData.filter(d => d.sex === 'ชาย').length;
+            const femaleCount = filteredData.filter(d => d.sex === 'หญิง').length;
+
+            if (sexChartObj) sexChartObj.destroy();
+            sexChartObj = new Chart(document.getElementById('sexChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['ชาย', 'หญิง'],
+                    datasets: [{
+                        data: [maleCount, femaleCount],
+                        backgroundColor: ['#38bdf8', '#f472b6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc' } } }
+                }
+            });
+
+            // Chart 4: Age Structure Bar Chart
+            let ageGroup1 = 0, ageGroup2 = 0, ageGroup3 = 0;
+            filteredData.forEach(d => {
+                let age = parseInt(d.age) || 0;
+                if (age <= 14) ageGroup1++;
+                else if (age <= 59) ageGroup2++;
+                else ageGroup3++;
+            });
+
+            if (ageChartObj) ageChartObj.destroy();
+            ageChartObj = new Chart(document.getElementById('ageChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-14 ปี', '15-59 ปี', '60 ปีขึ้นไป'],
+                    datasets: [{
+                        label: 'จำนวนผู้ป่วย',
+                        data: [ageGroup1, ageGroup2, ageGroup3],
+                        backgroundColor: ['#4ade80', '#fbbf24', '#f87171']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, beginAtZero: true }
+                    }
+                }
+            });
+
+            // Chart 5: Risk Factors Doughnut
+            const riskCounts = {};
+            filteredData.forEach(d => {
+                let r = d.risk || 'ไม่ระบุ';
+                riskCounts[r] = (riskCounts[r] || 0) + 1;
+            });
+
+            if (riskChartObj) riskChartObj.destroy();
+            riskChartObj = new Chart(document.getElementById('riskChart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(riskCounts),
+                    datasets: [{
+                        data: Object.values(riskCounts),
+                        backgroundColor: ['#a855f7', '#06b6d4', '#ec4899', '#84cc16']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc', font: { size: 10 } } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
